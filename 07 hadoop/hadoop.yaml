@@ -1,0 +1,195 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: hdfs-web-service
+spec:
+  type: NodePort
+  selector:
+    hdfs.nn: "true"
+  ports:
+    - name: hdfs-web-port
+      nodePort: 50070
+      port: 50070
+      targetPort: 50070
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: nn-service
+spec:
+  selector:
+    hdfs.nn: "true"
+  ports:
+    - name: nn-port
+      port: 9000
+      targetPort: 19000
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: yarn-web-service
+spec:
+  type: NodePort
+  selector:
+    yarn.rm: "true"
+  ports:
+    - name: yarn-web-port
+      nodePort: 8088
+      port: 8088
+      targetPort: 8088
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: rm-service
+spec:
+  selector:
+    yarn.rm: "true"
+  ports:
+    - name: yarn.resourcemanager.address
+      port: 8032
+      targetPort: 8032
+    - name: yarn.resourcemanager.scheduler.address
+      port: 8030
+      targetPort: 8030
+    - name: yarn.resourcemanager.resource-tracker.address
+      port: 8031
+      targetPort: 8031
+    - name: yarn.resourcemanager.admin.address
+      port: 8033
+      targetPort: 8033
+
+---
+
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: nn-daemonset
+spec:
+  selector:
+    matchLabels:
+      hdfs.nn: "true"
+  template:
+    metadata:
+      labels:
+        hdfs.nn: "true"
+    spec:
+      nodeSelector:
+        hdfs.nn: "true"
+
+      initContainers:
+        - name: init-nn
+          image: hdfs:nn
+          volumeMounts:
+          - name: hadoopdata
+            mountPath: /usr/local/hadoop/hadoopdata
+          command: ["my-nn-format.sh"]
+
+      containers:
+        - name: nn
+          image: hdfs:nn
+          volumeMounts:
+            - name: hadoopdata
+              mountPath: /usr/local/hadoop/hadoopdata
+          command: ["my-nn-start.sh"]
+
+      volumes:
+        - name: hadoopdata
+          hostPath:
+            path: /hadoopdata
+
+---
+
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: dn-daemonset
+spec:
+  selector:
+    matchLabels:
+      hdfs.dn: "true"
+  template:
+    metadata:
+      labels:
+        hdfs.dn: "true"
+    spec:
+      nodeSelector:
+        hdfs.dn: "true"
+
+      containers:
+        - name: dn
+          image: hdfs:dn
+          volumeMounts:
+            - name: hadoopdata
+              mountPath: /usr/local/hadoop/hadoopdata
+          command: ["my-dn-start.sh"]
+
+      volumes:
+        - name: hadoopdata
+          hostPath:
+            path: /hadoopdata
+
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: rm-daemonset
+spec:
+  selector:
+    matchLabels:
+      yarn.rm: "true"
+  template:
+    metadata:
+      labels:
+        yarn.rm: "true"
+    spec:
+      nodeSelector:
+        yarn.rm: "true"
+
+      containers:
+        - name: rm
+          image: hadoop:nn
+          volumeMounts:
+            - name: hadoopdata
+              mountPath: /usr/local/hadoop/hadoopdata
+          command: ["my-rm-start.sh"]
+
+      volumes:
+        - name: hadoopdata
+          hostPath:
+            path: /hadoopdata
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: nm-daemonset
+spec:
+  selector:
+    matchLabels:
+      yarn.nm: "true"
+  template:
+    metadata:
+      labels:
+        yarn.nm: "true"
+    spec:
+      nodeSelector:
+        yarn.nm: "true"
+
+      containers:
+        - name: nm
+          image: hadoop:dn
+          volumeMounts:
+            - name: hadoopdata
+              mountPath: /usr/local/hadoop/hadoopdata
+          command: ["my-nm-start.sh"]
+
+      volumes:
+        - name: hadoopdata
+          hostPath:
+            path: /hadoopdata
